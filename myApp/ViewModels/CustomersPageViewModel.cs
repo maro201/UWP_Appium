@@ -1,4 +1,6 @@
-﻿using myApp.Models;
+﻿using GalaSoft.MvvmLight;
+using GalaSoft.MvvmLight.Command;
+using myApp.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -8,46 +10,36 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using Windows.UI.Xaml.Controls;
 
 namespace myApp.ViewModels
 {
-    public class CustomersPageViewModel : INotifyPropertyChanged
+    public class CustomersPageViewModel : ViewModelBase
     {
         private readonly MyAppDbContext _dbContext;
+
+        public ObservableCollection<Customer> Customers { get; }
+        public ICommand AddCustomerCommand { get; }
+        public ICommand EditCustomerCommand { get; }
+        public ICommand DeleteCustomerCommand { get; }
+        public Customer SelectedCustomer { get; set; }
 
         public CustomersPageViewModel()
         {
             _dbContext = new MyAppDbContext();
-            LoadCustomers();
+
+            Customers = new ObservableCollection<Customer>(_dbContext.Customers);
+
+            AddCustomerCommand = new RelayCommand(AddCustomer);
+            EditCustomerCommand = new RelayCommand(EditCustomer, CanEditOrDeleteCustomer);
+            DeleteCustomerCommand = new RelayCommand(DeleteCustomer, CanEditOrDeleteCustomer);
         }
 
-        public ObservableCollection<Customer> Customers { get; } = new ObservableCollection<Customer>();
-
-        private Customer _selectedCustomer;
-        public Customer SelectedCustomer
-        {
-            get => _selectedCustomer;
-            set => SetProperty(ref _selectedCustomer, value);
-        }
-
-        public ICommand AddCustomerCommand => new RelayCommand(AddCustomer);
-        public ICommand EditCustomerCommand => new RelayCommand(EditCustomer, CanEditDeleteCustomer);
-        public ICommand DeleteCustomerCommand => new RelayCommand(DeleteCustomer, CanEditDeleteCustomer);
-
-        private void LoadCustomers()
-        {
-            Customers.Clear();
-            foreach (var customer in _dbContext.Customers)
-            {
-                Customers.Add(customer);
-            }
-        }
-
-        private void AddCustomer()
+        private async void AddCustomer()
         {
             var customer = new Customer();
             var customerDialog = new CustomerDialog(customer);
-            if (customerDialog.ShowDialog() == true)
+            if (await customerDialog.ShowAsync() == ContentDialogResult.Primary)
             {
                 _dbContext.Customers.Add(customer);
                 _dbContext.SaveChanges();
@@ -55,13 +47,18 @@ namespace myApp.ViewModels
             }
         }
 
-        private void EditCustomer()
+        private async void EditCustomer()
         {
             var customerDialog = new CustomerDialog(SelectedCustomer);
-            if (customerDialog.ShowDialog() == true)
+            if (await customerDialog.ShowAsync() == ContentDialogResult.Primary)
             {
                 _dbContext.SaveChanges();
             }
+        }
+
+        private bool CanEditOrDeleteCustomer()
+        {
+            return SelectedCustomer != null;
         }
 
         private void DeleteCustomer()
@@ -70,32 +67,6 @@ namespace myApp.ViewModels
             _dbContext.SaveChanges();
             Customers.Remove(SelectedCustomer);
         }
-
-        private bool CanEditDeleteCustomer()
-        {
-            return SelectedCustomer != null;
-        }
-
-        #region INotifyPropertyChanged implementation
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
-        protected bool SetProperty<T>(ref T backingField, T value, [CallerMemberName] string propertyName = null)
-        {
-            if (EqualityComparer<T>.Default.Equals(backingField, value))
-            {
-                return false;
-            }
-
-            backingField = value;
-            OnPropertyChanged(propertyName);
-            return true;
-        }
-        #endregion
     }
 
 
